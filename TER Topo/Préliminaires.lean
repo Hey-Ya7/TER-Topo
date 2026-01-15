@@ -49,6 +49,15 @@ instance {n} : OfNat R₊ n := ⟨(n : ℝ), Nat.ofPos n⟩
 
 -- on veut que le compilateur puisse reconnaître les opérations dans les ensembles de R
 
+instance : HAdd R R ℝ where
+  hAdd := fun x => fun y => (x : ℝ) + (y : ℝ)
+
+instance : HSub R R ℝ where
+  hSub := fun x => fun y => (x : ℝ) - (y : ℝ)
+
+instance : HMul R R ℝ where
+  hMul := fun x => fun y => (x : ℝ) * (y : ℝ)
+
 instance : HAdd R₊ R₊ ℝ where
   hAdd := fun x => fun y => (x : ℝ) + (y : ℝ)
 
@@ -56,7 +65,7 @@ instance : HSub R₊ R₊ ℝ where
   hSub := fun x => fun y => (x : ℝ) - (y : ℝ)
 
 instance : HMul R₊ R₊ ℝ where
-hMul := fun x => fun y => (x : ℝ) * (y : ℝ)
+  hMul := fun x => fun y => (x : ℝ) * (y : ℝ)
 
 instance : HAdd R₋ R₋ ℝ where
   hAdd := fun x => fun y => (x : ℝ) + (y : ℝ)

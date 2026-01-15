@@ -42,13 +42,15 @@ def R_usuelle : isMetricSpace ℝ where
   dist_pos := by intro x y; exact abs_nonneg (x - y : ℝ)
 
   dist_sep := by {
-    intro x y; simp; rw [sub_eq_zero]
+    intro x y; simp [sub_eq_zero]
   }
 
   dist_symm := by {
-    intro x y; simp; rw [abs_sub_comm]
+    intro x y; simp [abs_sub_comm]
   }
 
   dist_ineq := by {
-    intro x y z; simp; apply abs_sub_le
+    intro x y z; simp [abs_sub_le]
   }
+
+end Metric
