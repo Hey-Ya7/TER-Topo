@@ -1,4 +1,6 @@
-import «TER Topo».Préliminaires
+import TopoTER.Préliminaires
+
+open TER
 
 -- 1. Espaces métriques
 
@@ -15,7 +17,7 @@ def sep (d : X × X → R₊) : Prop := ∀ x y, d (x, y) = ℝ.0 ↔ x = y
 
 def symm (d : X × X → R₊) : Prop := ∀ x y, d (x, y) = d (y, x)
 
-def ineq (d : X × X → R₊) : Prop := ∀ x y z, d (x, y) + d (y, z) ≥ d (x, z)
+def ineq (d : X × X → R₊) : Prop := ∀ x y z, d (x, z) ≤ d (x, y) + d (y, z)
 
 def isDistance (d : X × X → R₊) : Prop := sep d ∧ symm d ∧ ineq d
 
@@ -27,9 +29,9 @@ structure MetricSpace (α : Type) where
 -- un constructeur plus pratique à utiliser:
 
 structure newMetricSpace (α : Type) extends MetricSpace α where
-  dist : X × X → R
-  dist_pos : ∀ x y, dist (x, y) ≥ ℝ.0
-  d := fun (x, y) => ⟨dist (x, y), dist_pos x y⟩
+  dist : X → X → ℝ
+  dist_pos : ∀ x y, dist x y ≥ ℝ.0
+  d := (x, y) ↦ ⟨dist x y, dist_pos x y⟩
 
   dist_sep : sep d
   dist_symm : symm d
@@ -40,9 +42,9 @@ structure newMetricSpace (α : Type) extends MetricSpace α where
 
 -- 1.
 def R_usuelle : newMetricSpace ℝ where
-  X := R
-  dist := (x, y) ↦ |x - y|
-  dist_pos := by intro x y; exact abs_nonneg (x - y)
+  X := ℝ
+  dist := x ↦ y ↦ |x - y|
+  dist_pos := by intro x y; apply abs_nonneg
 
   dist_sep := by {
     intro x y; cleanup; rw [abs_eq_zero, sub_eq_zero]
@@ -57,19 +59,24 @@ def R_usuelle : newMetricSpace ℝ where
   }
 
 -- 2.
-def C_usuelle : newMetricSpace ℂ where
-  X := C
-  dist := (x, y) ↦ ‖x - y‖
-  dist_pos := by intro x y; apply Real.sqrt_nonneg
+open Real Complex in
+noncomputable def C_usuelle : newMetricSpace ℂ where
+  X := ℂ
+  dist := x ↦ y ↦ ‖x - y‖
+  dist_pos := by intro x y; apply Complex.norm_nonneg
 
   dist_sep := by {
     intro x y; cleanup; rw [norm_eq_zero, sub_eq_zero]
   }
 
   dist_symm := by {
-    intro x y; cleanup; rw [norm_sub_rev]
+    intro x y; cleanup; rw [norm_symm, neg_sub]
   }
 
-  dist_ineq := by sorry --TODO
+  dist_ineq := by {
+    intro x y z; cleanup
+    have eq : (x : ℂ) - z = (x - y) + (y - z) := by ring
+    rw [eq]; apply norm_ineq
+  }
 
 end Metric
