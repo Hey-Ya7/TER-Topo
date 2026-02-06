@@ -2,14 +2,10 @@ import Mathlib.Data.Set.Basic
 
 namespace TER
 
-variable {α : Type u}
-variable {S : Set α}
+variable {α β : Type u} {S : Set α}
 
 @[coe] def coe_type : α → @Set.univ α := fun e => ⟨e, Set.mem_univ e⟩
 @[simp, norm_cast] lemma coe_coe_type (e : α) : ↑(coe_type e) = e := by rfl
-
-instance : Coe Type (Set α) where
-  coe := fun _ => @Set.univ α
 
 instance [HAdd α α α] : HAdd S S α where
   hAdd := fun x => fun y => (x : α) + (y : α)
@@ -52,8 +48,7 @@ scoped infix:50 (priority := high) " ≤ " => TypeLE.le
 
 scoped infix:50 (priority := high) " < " => TypeLT.lt
 
-variable {x y : S}
-variable {z : α}
+variable {x y : S} {z : α}
 
 @[simp] lemma elem_eq : x = y ↔ x.val = y.val := by rw [SetCoe.ext_iff]
 
