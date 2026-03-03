@@ -47,23 +47,23 @@ open Real Complex
 namespace Complex
 
 noncomputable def module (z : ℂ) : ℝ := √(normSq z)
-scoped notation "‖"z"‖" => module z
+scoped notation "‖"z"‖ᵢ" => module z
 
-theorem norm_nonneg (z : ℂ) : ‖z‖ ≥ 0 := by apply sqrt_nonneg
+theorem norm_nonneg (z : ℂ) : ‖z‖ᵢ ≥ 0 := by apply sqrt_nonneg
 
-theorem norm_eq_zero (z : ℂ) : ‖z‖ = 0 ↔ z = 0 := by
+theorem norm_eq_zero (z : ℂ) : ‖z‖ᵢ = 0 ↔ z = 0 := by
   unfold module; rw [sqrt_eq_zero, normSq_eq_zero]; apply normSq_nonneg
 
-theorem norm_zero : ‖0‖ = 0 := by rw [norm_eq_zero]
+theorem norm_zero : ‖0‖ᵢ = 0 := by rw [norm_eq_zero]
 
-theorem norm_pos {z : ℂ} (h : z ≠ 0) : ‖z‖ > 0 := by
+theorem norm_pos {z : ℂ} (h : z ≠ 0) : ‖z‖ᵢ > 0 := by
   apply lt_of_le_of_ne (norm_nonneg z)
   intro h'; absurd h; rw [←norm_eq_zero]; symm; exact h'
 
-theorem norm_symm (z : ℂ) : ‖z‖ = ‖-z‖ := by
+theorem norm_symm (z : ℂ) : ‖z‖ᵢ = ‖-z‖ᵢ := by
   dsimp [module, normSq]; rw [neg_mul_neg, neg_mul_neg]
 
-lemma norm_add_one (z : ℂ) : ‖z + 1‖ ≤ ‖z‖ + 1 := by
+lemma norm_add_one (z : ℂ) : ‖z + 1‖ᵢ ≤ ‖z‖ᵢ + 1 := by
   dsimp [module, normSq]; apply le_of_sq_le_sq
   · rw [add_sq, sq_sqrt, sq_sqrt, sq, mul_one, one_mul]
     · rw [add_zero, add_mul_self_eq, mul_one, one_mul]
@@ -80,13 +80,16 @@ lemma norm_add_one (z : ℂ) : ‖z + 1‖ ≤ ‖z‖ + 1 := by
     · apply normSq_nonneg (z + 1)
   · apply add_nonneg (hb := zero_le_one); apply sqrt_nonneg
 
-theorem norm_div (z w : ℂ) : ‖z / w‖ = ‖z‖ / ‖w‖ := by
+theorem norm_mul (z w : ℂ) : ‖z * w‖ᵢ = ‖z‖ᵢ * ‖w‖ᵢ := by
+  unfold module; rw [←sqrt_mul (normSq_nonneg z), normSq_mul]
+
+theorem norm_div (z w : ℂ) : ‖z / w‖ᵢ = ‖z‖ᵢ / ‖w‖ᵢ := by
   unfold module; rw [←sqrt_div (normSq_nonneg z), normSq_div]
 
-theorem norm_ineq (z w : ℂ) : ‖z + w‖ ≤ ‖z‖ + ‖w‖ := by
+theorem norm_ineq (z w : ℂ) : ‖z + w‖ᵢ ≤ ‖z‖ᵢ + ‖w‖ᵢ := by
   by_cases eq_zero : w = 0
   · rw [eq_zero, add_zero, norm_zero, add_zero]
-  · have pos : ‖w‖ > 0 := norm_pos eq_zero
+  · have pos : ‖w‖ᵢ > 0 := norm_pos eq_zero
     apply (div_le_div_iff_of_pos_right pos).mp
     rw [←norm_div]; repeat rw [add_div, div_self]
     · rw [←norm_div]; apply norm_add_one
@@ -97,10 +100,8 @@ end Complex
 
 namespace VectorSpace
 
-variable {E : Type*} [AddCommGroup E] [Module ℝ E] [FiniteDimensional ℝ E]
-
-class R_Euclidean (E : Type*) [AddCommGroup E] [Module ℝ E]
-  [FiniteDimensional ℝ E] where
+class Euclidean (E : Type*) [AddCommGroup E] [Module ℝ E]
+  extends FiniteDimensional ℝ E where
   scalar : E → E → ℝ
   symm (u v : E) : scalar u v = scalar v u
   add_left (u v w : E) : scalar (u + v) w = scalar u w + scalar v w
@@ -108,24 +109,64 @@ class R_Euclidean (E : Type*) [AddCommGroup E] [Module ℝ E]
   pos (u : E) : scalar u u ≥ 0
   definie (u : E) : scalar u u = 0 ↔ u = 0
 
-def S' (E : Type*) [AddCommGroup E] [Module ℝ E] [FiniteDimensional ℝ E]
-  [R_Euclidean E] : Set E := Set.univ
-scoped postfix : max "**" => S'
+class ValuationField (K : Type*) [Field K] where
+  abs : K → ℝ
+  isAbv : IsAbsoluteValue abs
+
+instance : ValuationField ℝ where
+  abs := abs
+  isAbv := IsAbsoluteValue.abs_isAbsoluteValue
+
+open Complex in
+instance module_abs : IsAbsoluteValue module where
+  abv_nonneg' := norm_nonneg
+  abv_eq_zero' := @norm_eq_zero
+  abv_add' := norm_ineq
+  abv_mul' := norm_mul
+
+open Complex in
+noncomputable instance : ValuationField ℂ where
+  abs := module
+  isAbv := module_abs
+
+def S' (α : Type*) : Set α := Set.univ
+scoped postfix : max "↑" => S'
 
 scoped syntax (name := dot_prod) "⟨" term ", " term "⟩" : term
 macro_rules (kind := dot_prod)
-  | `(⟨$x, $y⟩) => `(R_Euclidean.scalar $x $y)
+  | `(⟨$x, $y⟩) => `(Euclidean.scalar $x $y)
 
--- scoped infix : 79 "•" => R_Euclidean.scalar
-variable [EuclidR : R_Euclidean E]
+scoped notation : max "|"x"|" => ValuationField.abs x
+variable {K : Type*} [Field K] [VF : ValuationField K]
 
-theorem prod_symm (u v : E) : ⟨u, v⟩ = ⟨v, u⟩ := EuclidR.symm u v
+theorem abs_zero : |(0 : K)| = 0 := by
+  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩; rw [defi]
+
+theorem abs_one : |(1 : K)| = 1 := by
+  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩
+  have eq : |(1 : K)| * |(1 : K)| = |(1 : K)| := by
+    rw [←mul, one_mul]
+  rw [mul_left_eq_self₀] at eq; rcases eq with pos | neg
+  · case inl => assumption
+  · case inr => absurd neg; rw [defi]; apply one_ne_zero
+
+theorem abs_neg_one : |(-1 : K)| = 1 := by
+  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩
+  have eq : |(-1 : K)| * |(-1 : K)| = 1 := by
+    rw [←mul, neg_one_mul, neg_neg, abs_one]
+  rw [mul_self_eq_one_iff] at eq; rcases eq with pos | neg
+  · case inl => assumption
+  · case inr => linarith [nneg (-1)]
+
+variable {E : Type*} [AddCommGroup E] [Module ℝ E] [EuclidE : Euclidean E]
+
+theorem prod_symm (u v : E) : ⟨u, v⟩ = ⟨v, u⟩ := EuclidE.symm u v
 
 theorem prod_add_left (u v w : E) : ⟨u + v, w⟩ = ⟨u, w⟩ + ⟨v, w⟩ :=
-  EuclidR.add_left u v w
+  EuclidE.add_left u v w
 
 theorem prod_smul_left (u v : E) (k : ℝ) : ⟨k • u, v⟩ = k * ⟨u, v⟩ :=
-  EuclidR.smul_left u v k
+  EuclidE.smul_left u v k
 
 theorem prod_add_right (u v w : E) : ⟨u, v + w⟩ = ⟨u, v⟩ + ⟨u, w⟩ := by
   rw [prod_symm, prod_add_left, prod_symm, prod_symm u w]
@@ -133,9 +174,9 @@ theorem prod_add_right (u v w : E) : ⟨u, v + w⟩ = ⟨u, v⟩ + ⟨u, w⟩ :=
 theorem prod_smul_right (u v : E) (k : ℝ) : ⟨u, k • v⟩ = k * ⟨u, v⟩ := by
   rw [prod_symm, prod_smul_left, prod_symm]
 
-theorem prod_pos (u : E) : ⟨u, u⟩ ≥ 0 := EuclidR.pos u
+theorem prod_pos (u : E) : ⟨u, u⟩ ≥ 0 := EuclidE.pos u
 
-theorem prod_definie (u : E) : ⟨u, u⟩ = 0 ↔ u = 0 := EuclidR.definie u
+theorem prod_definie (u : E) : ⟨u, u⟩ = 0 ↔ u = 0 := EuclidE.definie u
 
 theorem prod_definie' (u : E) : ⟨u, u⟩ ≠ 0 ↔ u ≠ 0 := by
   apply Iff.ne; apply prod_definie
@@ -167,54 +208,51 @@ theorem am_gm_ineq (u v : E) : ⟨u, u⟩ + ⟨v, v⟩ ≥ 2 * ⟨u, v⟩ := by
   apply le_of_sub_nonneg; rw [←sub_prod_sub]; apply prod_pos
 
 noncomputable def norm (u : E) : ℝ := √⟨u, u⟩
-scoped notation "‖"u"‖" => norm u
+scoped notation "‖"u"‖ₑ" => norm u
 
-theorem norm_nonneg (u : E) : ‖u‖ ≥ 0 := by apply sqrt_nonneg
+theorem norm_nonneg (u : E) : ‖u‖ₑ ≥ 0 := by apply sqrt_nonneg
 
-theorem norm_eq_zero (u : E) : ‖u‖ = 0 ↔ u = 0 := by
+theorem norm_eq_zero (u : E) : ‖u‖ₑ = 0 ↔ u = 0 := by
   unfold norm; rw [sqrt_eq_zero, prod_definie]; apply prod_pos
 
-theorem norm_zero : ‖(0 : E)‖ = 0 := by rw [norm_eq_zero]
+theorem norm_zero : ‖(0 : E)‖ₑ = 0 := by rw [norm_eq_zero]
 
-theorem norm_pos {u : E} (h : u ≠ 0) : ‖u‖ > 0 := by
+theorem norm_pos {u : E} (h : u ≠ 0) : ‖u‖ₑ > 0 := by
   apply lt_of_le_of_ne (norm_nonneg u)
   intro h'; absurd h; rw [←norm_eq_zero]; symm; exact h'
 
-theorem norm_symm (u : E) : ‖u‖ = ‖-u‖ := by
+theorem norm_symm (u : E) : ‖u‖ₑ = ‖-u‖ₑ := by
   unfold norm; rw [prod_neg, neg_prod, neg_neg]
 
-noncomputable instance : HDiv E ℝ E where
+@[simp] noncomputable instance : HDiv E ℝ E where
   hDiv := u ↦ x ↦ x⁻¹ • u
 
-omit [FiniteDimensional ℝ E] EuclidR in
-@[simp] theorem div_def (u : E) (x : ℝ) : u / x = x⁻¹ • u := by rfl
-
 -- pour éviter la confusion avec la division scalaire:
-scoped infix : 78 " | " => @HDiv.hDiv ℝ ℝ ℝ instHDiv
+local infix : 78 " ∣ " => @HDiv.hDiv ℝ ℝ ℝ instHDiv
 
-lemma div_prod_div (u v : E) (x y : ℝ) : ⟨u / x, v / y⟩ = ⟨u, v⟩ | (x * y)
+lemma div_prod_div (u v : E) (x y : ℝ) : ⟨u / x, v / y⟩ = ⟨u, v⟩ ∣ (x * y)
   := by
-  simp only [div_def]; rw [prod_smul_left, prod_smul_right]
+  dsimp; rw [prod_smul_left, prod_smul_right]
   rw [←mul_assoc, ←mul_inv, ←div_eq_inv_mul]
 
-theorem div_norm_sq {u : E} (h : u ≠ 0) : ⟨u / ‖u‖, u / ‖u‖⟩ = 1 := by
+theorem div_norm_sq {u : E} (h : u ≠ 0) : ⟨u / ‖u‖ₑ, u / ‖u‖ₑ⟩ = 1 := by
   unfold norm; rw [div_prod_div, mul_self_sqrt (prod_pos u)]
   rw [div_self]; rw [prod_definie']; exact h
 
-theorem cauchy_schwarz (u v : E) : ⟨u, v⟩ ≤ ‖u‖ * ‖v‖ := by
+theorem cauchy_schwarz (u v : E) : ⟨u, v⟩ ≤ ‖u‖ₑ * ‖v‖ₑ := by
   by_cases h : u = 0
   case pos => rw [h, zero_prod, norm_zero, zero_mul]
   case neg =>
     by_cases h' : v = 0
     case pos => rw [h', prod_zero, norm_zero, mul_zero]
     case neg =>
-      have pos : ‖u‖ * ‖v‖ > 0 := by
+      have pos : ‖u‖ₑ * ‖v‖ₑ > 0 := by
         exact mul_pos (norm_pos h) (norm_pos h')
-      have ineq := am_gm_ineq (u / ‖u‖) (v / ‖v‖)
+      have ineq := am_gm_ineq (u / ‖u‖ₑ) (v / ‖v‖ₑ)
       rw [div_norm_sq h, div_norm_sq h', div_prod_div] at ineq
       rw [←div_le_one pos]; linarith [ineq]
 
-theorem norm_ineq (u v : E) : ‖u + v‖ ≤ ‖u‖ + ‖v‖ := by
+theorem norm_ineq (u v : E) : ‖u + v‖ₑ ≤ ‖u‖ₑ + ‖v‖ₑ := by
   unfold norm; apply le_of_sq_le_sq
   · rw [add_prod_add, add_sq, sq_sqrt, sq_sqrt, sq_sqrt]
     · rw [←norm, ←norm]; linarith [cauchy_schwarz u v]

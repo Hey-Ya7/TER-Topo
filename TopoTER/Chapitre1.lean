@@ -4,7 +4,7 @@ open TER
 
 -- 1. Espaces métriques
 
-namespace Metric
+namespace Metrique
 
 -- 1.1. Définition, premiers exemples
 
@@ -20,133 +20,124 @@ def symm (X : Set α) (d : α → α → ℝ) := ∀ x y ∈ X, d x y = d y x
 
 def ineq (X : Set α) (d : α → α → ℝ) := ∀ x y z ∈ X, d x z ≤ d x y + d y z
 
-structure Distance (X : Set α) where
-  dist : α → α → ℝ
-  nneg : nneg X dist
-  sep : sep X dist
-  symm : symm X dist
-  ineq : ineq X dist
+structure estDistance (X : Set α) (d : α → α → ℝ) where
+  nneg : nneg X d
+  sep : sep X d
+  symm : symm X d
+  ineq : ineq X d
 
-structure MetricSpace (α : Type*) where
+structure EspaceMetrique (α : Type*) where
   X : Set α
-  d : Distance X
+  d : α → α → ℝ
+  is_dist : estDistance X d
 
 -- Exemple 1.2.
 
 -- 1.
-def abs_dist : ℝ → ℝ → ℝ := x ↦ y ↦ |x - y|
+@[simp] def abs_dist : ℝ → ℝ → ℝ := x ↦ y ↦ |x - y|
 
 lemma abs_nneg : nneg R abs_dist := by
   intro x _ y _; apply abs_nonneg
 
 lemma abs_sep : sep R abs_dist := by
-  intro x _ y _; unfold abs_dist; rw [abs_eq_zero, sub_eq_zero]
+  intro x _ y _; dsimp; rw [abs_eq_zero, sub_eq_zero]
 
 lemma abs_symm : symm R abs_dist := by
-  intro x _ y _; unfold abs_dist; rw [abs_sub_comm]
+  intro x _ y _; dsimp; rw [abs_sub_comm]
 
 lemma abs_ineq : ineq R abs_dist := by
-  intro x _ y _ z _; unfold abs_dist; apply abs_sub_le
+  intro x _ y _ z _; dsimp; apply abs_sub_le
 
-def r_usuelle : Distance R where
-  dist := abs_dist
-  nneg := abs_nneg
-  sep := abs_sep
-  symm := abs_symm
-  ineq := abs_ineq
-
-def R_usuelle : MetricSpace ℝ where
+def R_usuelle : EspaceMetrique ℝ where
   X := R
-  d := r_usuelle
+  d := abs_dist
+  is_dist := ⟨
+    abs_nneg, abs_sep,
+    abs_symm, abs_ineq
+  ⟩
 
 -- 2.
-section Complex
+noncomputable section Complex
 open Complex
 
-noncomputable def module_dist : ℂ → ℂ → ℝ := x ↦ y ↦ ‖x - y‖
+@[simp] def module_dist : ℂ → ℂ → ℝ := x ↦ y ↦ ‖x - y‖ᵢ
 
 lemma module_nneg : nneg C module_dist := by
   intro x _ y _; apply norm_nonneg
 
 lemma module_sep : sep C module_dist := by
-  intro x _ y _; unfold module_dist; rw [norm_eq_zero, sub_eq_zero]
+  intro x _ y _; dsimp; rw [norm_eq_zero, sub_eq_zero]
 
 lemma module_symm : symm C module_dist := by
-  intro x _ y _; unfold module_dist; rw [norm_symm, neg_sub]
+  intro x _ y _; dsimp; rw [norm_symm, neg_sub]
 
 lemma module_ineq : ineq C module_dist := by
   intro x _ y _ z _; unfold module_dist
   have eq : x - z = (x - y) + (y - z) := by ring
   rw [eq]; apply norm_ineq
 
-noncomputable def c_usuelle : Distance C where
-  dist := module_dist
-  nneg := module_nneg
-  sep := module_sep
-  symm := module_symm
-  ineq := module_ineq
-
-noncomputable def C_usuelle : MetricSpace ℂ where
+def C_usuelle : EspaceMetrique ℂ where
   X := C
-  d := c_usuelle
+  d := module_dist
+  is_dist := ⟨
+    module_nneg, module_sep,
+    module_symm, module_ineq
+  ⟩
 
 end Complex
 
 -- 3.
-section Euclidean
+noncomputable section Euclidean
 open VectorSpace
-variable {E : Type*} [AddCommGroup E] [Module ℝ E] [FiniteDimensional ℝ E]
-  [R_Euclidean E]
+variable {E : Type*} [AddCommGroup E] [Module ℝ E] [Euclidean E]
 
-noncomputable def euclid_dist : E → E → ℝ := x ↦ y ↦ √⟨x - y, x - y⟩
+@[simp] def euclid_dist : E → E → ℝ := x ↦ y ↦ ‖x - y‖ₑ
 
-lemma euclid_nneg : nneg E** euclid_dist := by
+lemma euclid_nneg : nneg E↑ euclid_dist := by
   intro x _ y _; apply norm_nonneg
 
-lemma euclid_sep : sep E** euclid_dist := by
-  intro x _ y _; unfold euclid_dist; rw [←norm, norm_eq_zero, sub_eq_zero]
+lemma euclid_sep : sep E↑ euclid_dist := by
+  intro x _ y _; dsimp; rw [norm_eq_zero, sub_eq_zero]
 
-lemma euclid_symm : symm E** euclid_dist := by
-  intro x _ y _; unfold euclid_dist; rw [←norm, ←norm, norm_symm, neg_sub]
+lemma euclid_symm : symm E↑ euclid_dist := by
+  intro x _ y _; dsimp; rw [norm_symm, neg_sub]
 
-lemma euclid_ineq : ineq E** euclid_dist := by
-  intro x _ y _ z _; unfold euclid_dist; repeat rw [←norm]
+lemma euclid_ineq : ineq E↑ euclid_dist := by
+  intro x _ y _ z _; dsimp
   have eq : x - z = (x - y) + (y - z) := by abel
   rw [eq]; apply norm_ineq
 
-noncomputable def euclid : Distance E** where
-  dist := euclid_dist
-  nneg := euclid_nneg
-  sep := euclid_sep
-  symm := euclid_symm
-  ineq := euclid_ineq
-
-noncomputable def Euclid : MetricSpace E where
-  X := E**
-  d := euclid
+def Euclid : EspaceMetrique E where
+  X := E↑
+  d := euclid_dist
+  is_dist := ⟨
+    euclid_nneg, euclid_sep,
+    euclid_symm, euclid_ineq
+  ⟩
 
 end Euclidean
 
 -- 4.
+noncomputable section Discrete
 open Classical in
-noncomputable def discrete_dist : α → α → ℝ := x ↦ y ↦ ite (x = y) 0 1
+@[simp] def discrete_dist : α → α → ℝ := x ↦ y ↦ ite (x = y) 0 1
 
 lemma discrete_nneg : nneg X discrete_dist := by
-  intro x _ y _; unfold discrete_dist; split
+  intro x _ y _; dsimp; split
   · case isTrue => rfl
   · case isFalse => linarith
 
 lemma discrete_sep : sep X discrete_dist := by
-  intro x _ y _; unfold discrete_dist; split
+  intro x _ y _; dsimp; split
   · case isTrue h => simp only [h]
   · case isFalse h => simp only [one_ne_zero, h]
 
 lemma discrete_symm : symm X discrete_dist := by
-  intro x _ y _; unfold discrete_dist; rw [@Eq.comm α]
+  intro x _ y _; dsimp; rw [@Eq.comm α]
 
 open Classical in
 lemma discrete_ineq : ineq X discrete_dist := by
-  intro x h1 y h2 z h3; unfold discrete_dist; split
+  intro x h1 y h2 z h3; dsimp; split
   · case isTrue => apply add_nonneg (discrete_nneg x h1 y h2)
                    apply discrete_nneg y h2 z h3
   · case isFalse h =>
@@ -158,45 +149,84 @@ lemma discrete_ineq : ineq X discrete_dist := by
     · case isFalse => apply le_add_of_nonneg_right
                       apply discrete_nneg y h2 z h3
 
-noncomputable def discrete (X : Set α) : Distance X where
-  dist := discrete_dist
-  nneg := discrete_nneg
-  sep := discrete_sep
-  symm := discrete_symm
-  ineq := discrete_ineq
-
-noncomputable def Discrete (X : Set α) : MetricSpace α where
+def Discrete (X : Set α) : EspaceMetrique α where
   X := X
-  d := discrete X
+  d := discrete_dist
+  is_dist := ⟨
+    discrete_nneg, discrete_sep,
+    discrete_symm, discrete_ineq
+  ⟩
+
+end Discrete
 
 -- 5.
-lemma induite_nneg {X : Set α} {X' : Set α} {d : α → α → ℝ} (h : X ⊆ X')
-  (h' : nneg X' d) : nneg X d := by
-  intro x hx y hy; apply h at hx; apply h at hy; apply h' x hx y hy
+variable {A : Set α} {d : α → α → ℝ}
 
-lemma induite_sep {X : Set α} {X' : Set α} {d : α → α → ℝ} (h : X ⊆ X')
-  (h' : sep X' d) : sep X d := by
-  intro x hx y hy; apply h at hx; apply h at hy; apply h' x hx y hy
+lemma induite_dist (h : A ⊆ X) (h' : estDistance X d) : estDistance A d := by
+  rcases h' with ⟨nneg, sep, symm, ineq⟩; constructor
+  · case nneg => intro x hx y hy; apply nneg x (h hx) y (h hy)
+  · case sep => intro x hx y hy; apply sep x (h hx) y (h hy)
+  · case symm => intro x hx y hy; apply symm x (h hx) y (h hy)
+  · case ineq => intro x hx y hy z hz; apply ineq x (h hx) y (h hy) z (h hz)
 
-lemma induite_symm {X : Set α} {X' : Set α} {d : α → α → ℝ} (h : X ⊆ X')
-  (h' : symm X' d) : symm X d := by
-  intro x hx y hy; apply h at hx; apply h at hy; apply h' x hx y hy
-
-lemma induite_ineq {X : Set α} {X' : Set α} {d : α → α → ℝ} (h : X ⊆ X')
-  (h' : ineq X' d) : ineq X d := by
-  intro x hx y hy z hz; apply h at hx; apply h at hy; apply h at hz
-  apply h' x hx y hy z hz
-
-def induite {X : Set α} {X' : Set α} (h : X ⊆ X') (d : Distance X') :
-  Distance X where
-  dist := d.dist
-  nneg := induite_nneg h d.nneg
-  sep := induite_sep h d.sep
-  symm := induite_symm h d.symm
-  ineq := induite_ineq h d.ineq
-
-def Induite {A : Set α} (M : MetricSpace α) (h : A ⊆ M.X) : MetricSpace α where
+def Induite {M : EspaceMetrique α} (h : A ⊆ M.X) : EspaceMetrique α where
   X := A
-  d := induite h M.d
+  d := M.d
+  is_dist := induite_dist h M.is_dist
 
-end Metric
+end Metrique
+
+-- Définition 1.3.
+
+namespace EspaceNorme
+open VectorSpace
+
+variable {K : Type*} [Field K] [ValuationField K] {E : Type*} [AddCommGroup E]
+  [Module K E]
+
+def nneg (N : E → ℝ) := ∀ x, N x ≥ 0
+
+def definie (N : E → ℝ) := ∀ x, N x = 0 ↔ x = 0
+
+def homogen (N : E → ℝ) := ∀ x, ∀ a : K, N (a • x) = |a| * N x
+
+def ineq (N : E → ℝ) := ∀ x y, N (x + y) ≤ N x + N y
+
+structure estNorme (N : E → ℝ) where
+  nneg : nneg N
+  definie : definie N
+  homogen : homogen (K := K) N
+  ineq : ineq N
+
+class EspaceNorme' (E : Type*) where
+  norm : E → ℝ
+
+scoped notation "‖"u"‖" => EspaceNorme'.norm u
+
+class EspaceVecNorme (K : Type*) [Field K] [ValuationField K] (E : Type*)
+  [AddCommGroup E] extends Module K E where
+  norm : E → ℝ
+  is_norm : estNorme (K := K) norm
+
+instance [V : EspaceVecNorme K E] : EspaceNorme' E where
+
+
+-- Proposition 1.4.
+
+open Metrique
+
+theorem dist_of_norme (K : Type*) [Field K] [ValuationField K] (E : Type*)
+  [AddCommGroup E] [V : EspaceVecNorme K E] :
+  let d : E → E → ℝ := x ↦ y ↦ ‖x - y‖; estDistance E↑ d := by
+  rcases V.is_norm with ⟨nneg, defi, homo, ineq⟩; constructor
+  · case nneg => intro x _ y _; apply nneg
+  · case sep => intro x _ y _; rw [defi, sub_eq_zero]
+  · case symm => intro x _ y _; dsimp; rw [←neg_sub]
+                 rw [←neg_one_smul K, homo, abs_neg_one, one_mul]
+  · case ineq => intro x _ y _ z _; dsimp
+                 have eq : x - z = (x - y) + (y - z) := by abel
+                 rw [eq]; apply ineq
+
+--instance [V : EspaceVecNorme K E] : Coe E (EspaceMetrique E) := fromNorm
+
+end EspaceNorme
