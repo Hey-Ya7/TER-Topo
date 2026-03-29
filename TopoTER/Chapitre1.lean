@@ -192,16 +192,16 @@ end Metrique
 -- Définition 1.3.
 
 namespace EspaceNorme
-open VectorSpace
+open Valuation VectorSpace
 
-variable {K : Type*} [Field K] [ValuationField K] {E : Type*} [AddCommGroup E]
-  [Module K E]
+variable {K : Type*} [Field K] [VF : ValuationField K] {E : Type*}
+  [AddCommGroup E] [Module K E]
 
 def nneg (N : E → ℝ) := ∀ x, N x ≥ 0
 
 def definie (N : E → ℝ) := ∀ x, N x = 0 ↔ x = 0
 
-def homogen (N : E → ℝ) := ∀ x, ∀ a : K, N (a • x) = |a| * N x
+def homogen (N : E → ℝ) := ∀ x, ∀ a : K, N (a • x) = |a|ₖ * N x
 
 def ineq (N : E → ℝ) := ∀ x y, N (x + y) ≤ N x + N y
 
@@ -253,14 +253,204 @@ instance [G : GroupeNorme E] [EspaceVecNorme K E] : EspaceMetrique
 
 -- Proposition 1.5.
 
-open R_n
+open K_n
+variable {n : ℕ}
 
-def norme_sup {n : ℕ} : ℝ^n → ℝ := x ↦ ∑ i : Finset.range n, (x.p i)
-instance {n : ℕ} : GroupeNorme ℝ^n where
+noncomputable def norme_sup : K^n → ℝ := x ↦ sSup {|x.p i|ₖ | i < n}
+
+@[simp] lemma norme_Kzero (x : K^(0 : ℕ)) : norme_sup x = 0 := by
+  unfold norme_sup; simp
+
+lemma Kn_nonempty {n : ℕ} (h : n > 0) (x : K^n) : let s := {|x.p i|ₖ | i < n};
+  s.Nonempty := by use |x.p 0|ₖ, 0
+
+open SupReal in
+noncomputable instance : GroupeNorme K^n where
   norm := norme_sup
-  nneg := sorry
-  definie := sorry
-  ineq := sorry
+  nneg := by {
+    intro x; apply Real.sSup_nonneg
+    intro xi x_in; rcases x_in with ⟨i, i_le, hi⟩
+    rw [←hi]; apply Valuation.abs_nonneg
+  }
+
+  definie := by {
+    intro x; unfold norme_sup; rw [eq_zero_iff]
+    apply Iff.intro
+    · case mp => intro hi i i_le; apply abs_le_zero
+                 rw [←hi]; apply le_csSup
+                 · apply bddabove_of_fin_image
+                 · dsimp; use i, i_le
+    · case mpr => intro h; let s := {|x.p i|ₖ | i < n}
+                  refold_let s; cases n
+                  · case zero => apply norme_Kzero
+                  · case succ k =>
+                      have h₁ := Nat.zero_lt_succ k
+                      have h₂ := Kn_nonempty (K := K) h₁ x
+                      apply sSup_const h₂; intro x x_in
+                      rcases x_in with ⟨i, i_lt, hi⟩
+                      rw [h i i_lt] at hi
+                      rw [←Valuation.abs_zero (K := K), hi]
+  }
+
+  ineq := by {
+    intro x y; cases n
+    · case zero => simp [norme_Kzero]
+    · case succ k =>
+        let s := {|(x + y).p i|ₖ | i < k + 1}
+        let sx := {|x.p i|ₖ | i < k + 1}
+        let sy := {|y.p i|ₖ | i < k + 1}
+        let s' := sx + sy
+--
+        have h := Nat.zero_lt_succ k
+        have hx := Kn_nonempty (K := K) h x
+        have hy := Kn_nonempty (K := K) h y
+        have hs := Kn_nonempty (K := K) h (x + y)
+        have hs' := add_nonempty hx hy
+--
+        have ineq₁ : sSup s ≤ sSup s' := by
+          apply SupReal.sSup_le_sSup hs
+          · apply add_bddabove
+            repeat apply bddabove_of_fin_image
+          · intro u u_in; rcases u_in with ⟨i, i_le, hi⟩
+            have in_x : |x.p i|ₖ ∈ sx := by use i, i_le
+            have in_y : |y.p i|ₖ ∈ sy := by use i, i_le
+            use |x.p i|ₖ + |y.p i|ₖ; apply And.intro
+            · case left => use ⟨|x.p i|ₖ, |y.p i|ₖ⟩, ⟨in_x, in_y⟩
+            · case right => rw [←hi]; apply abs_add_ineq
+        apply le_trans ineq₁; apply sSup_add_ineq hx _ hy _
+        repeat apply bddabove_of_fin_image
+  }
+
+open Real in
+noncomputable instance : EspaceVecNorme K K^n where
+  homogen := by {
+    intro x a
+    suffices h : {|(a•x).p i|ₖ | i < n} = |a|ₖ • {|x.p i|ₖ | i < n} by
+      dsimp [GroupeNorme.norm, norme_sup]; rw [←smul_eq_mul]
+      rw [←sSup_smul_of_nonneg (abs_nonneg a), h]
+    ext r; simp [HSMul.hSMul]
+  }
+
+def norme_inf : K^n → ℝ := x ↦ ∑ i : Fin n, |x.p i|ₖ
+
+def Inf (α : Type _) : Type _ := α
+instance {E : Type*} [G : AddCommGroup E] : AddCommGroup (Inf E) := G
+instance {K E : Type*} [Field K] [AddCommGroup E] [M : Module K E] :
+  Module K (Inf E) := M
+
+instance : GroupeNorme (Inf K^n) where
+  norm := norme_inf
+  nneg := by {
+    intro x; apply Finset.sum_nonneg
+    intro i hi; apply Valuation.abs_nonneg
+  }
+
+  definie := by {
+    intro x; unfold norme_inf
+    rw [Finset.sum_eq_zero_iff_of_nonneg, eq_zero_iff]
+    · apply Iff.intro
+      · case mp => intro hi i i_fin; rw [←abs_definie]
+                   apply hi ⟨i, i_fin⟩; apply Finset.mem_univ
+      · case mpr => intro hi i i_in; rw [abs_definie]
+                    apply hi i i.isLt
+    · intro i hi; apply Valuation.abs_nonneg
+  }
+
+  ineq := by {
+    intro x y; unfold norme_inf; rw [←Finset.sum_add_distrib]
+    apply Finset.sum_le_sum; intro i hi; apply abs_add_ineq
+  }
+
+open Real in
+instance : EspaceVecNorme K (Inf K^n) where
+  homogen := by {
+    intro x a; dsimp [GroupeNorme.norm, norme_inf]
+    rw [Finset.mul_sum]; congr; ext i; rw [abs_mul_homo]; rfl
+  }
+
+noncomputable def norme_euclid : K^n → ℝ := x ↦ √(∑ i : Fin n, |x.p i|ₖ^2)
+-- on réduit au cas simple ℝⁿ :
+def Rn_of_Kn (x : K^n) : ℝ^n where
+  p := i ↦ |x.p i|ₖ
+  is_fin := by {
+    intro m m_ge; rw [abs_definie]
+    exact x.is_fin m m_ge
+  }
+
+lemma euclid_eq_Rn_norm (x : K^n) : norme_euclid x = ‖Rn_of_Kn x‖ₑ := by
+  dsimp [norme_euclid, norm, Euclidean.scalar, Rn_prod]
+  congr 2; dsimp [Rn_of_Kn]; ext; ring
+
+def Eucl (α : Type _) : Type _ := α
+instance {K : Type*} [G : AddCommGroup K] : AddCommGroup (Eucl K) := G
+instance {K E : Type*} [Field K] [AddCommGroup E] [M : Module K E] :
+  Module K (Eucl E) := M
+
+open Real in
+noncomputable instance : GroupeNorme (Eucl K^n) where
+  norm := norme_euclid
+  nneg := by intro x; apply sqrt_nonneg
+
+  definie := by {
+    intro x; rw [euclid_eq_Rn_norm, norm_eq_zero]
+    rw [eq_zero_iff, eq_zero_iff]; dsimp [Rn_of_Kn]
+    apply Iff.intro
+    case mp => intro h i i_lt; rw [←abs_definie]
+               exact h i i_lt
+    case mpr => intro h i i_lt; rw [abs_definie]
+                exact h i i_lt
+  }
+
+  ineq := by {
+    intro x y; unfold norme_euclid
+    let s := ∑ i : Fin n, |(x + y).p i|ₖ ^ 2
+    let sx := ∑ i : Fin n, |x.p i|ₖ ^ 2
+    let sy := ∑ i : Fin n, |y.p i|ₖ ^ 2
+    have sum_nneg (k : K^n) : 0 ≤ ∑ i : Fin n, |k.p i|ₖ ^ 2 :=
+      by apply Finset.sum_nonneg; intro i h; apply sq_nonneg
+    have x_add_y_nneg : 0 ≤ √sx + √sy := by
+      apply add_nonneg; repeat apply sqrt_nonneg
+--
+    have ineq : ∑ i : Fin n, |(x + y).p i|ₖ^2 ≤ ∑ i : Fin n, |x.p i|ₖ^2 +
+      ∑ i : Fin n, 2 * (|x.p i|ₖ * |y.p i|ₖ) + ∑ i : Fin n, |y.p i|ₖ^2 := by
+      rw [←Finset.sum_add_distrib, ←Finset.sum_add_distrib]
+      apply Finset.sum_le_sum; intro i _
+      calc |(x + y).p i|ₖ^2
+      _ = |(x + y).p i * (x + y).p i|ₖ := by simp [sq]
+      _ = |(x.p i + y.p i) * (x.p i + y.p i)|ₖ := by congr
+      _ = |(x.p i)^2 + 2 * x.p i * y.p i + (y.p i)^2|ₖ := by congr; ring
+      _ ≤ |(x.p i)^2 + 2 * x.p i * y.p i|ₖ + |(y.p i)^2|ₖ := abs_add_ineq _ _
+      _ ≤ |(x.p i)^2|ₖ + |2 * x.p i * y.p i|ₖ + |(y.p i)^2|ₖ := by {
+        apply add_le_add_left; apply abs_add_ineq
+      }
+      _ ≤ |x.p i|ₖ^2 + |2 * x.p i * y.p i|ₖ + |y.p i|ₖ^2 := by simp
+      _ ≤ _ := by {
+        apply add_le_add_left; apply add_le_add_right
+        rw [two_mul, two_mul, add_mul, abs_mul_homo]; apply abs_add_ineq
+      }
+--
+    rw [←abs_of_nonneg (sqrt_nonneg s)]
+    rw [←abs_of_nonneg x_add_y_nneg, ←sq_le_sq]
+    rw [sq_sqrt (sum_nneg (x + y)), add_sq]
+    rw [sq_sqrt (sum_nneg x), sq_sqrt (sum_nneg y)]
+    apply le_trans ineq; apply add_le_add_left
+    apply add_le_add_right; rw [mul_assoc, ←Finset.mul_sum]
+    apply mul_le_mul_of_nonneg_left _ zero_le_two
+--
+    unfold sx sy; rw [←norme_euclid, ←norme_euclid]
+    let kx := Rn_of_Kn x; let ky := Rn_of_Kn y
+    have eq : ∑ i : Fin n, |x.p i|ₖ * |y.p i|ₖ = ⟨kx, ky⟩ := by rfl
+    rw [eq, euclid_eq_Rn_norm, euclid_eq_Rn_norm]; apply cauchy_schwarz
+  }
+
+open Real in
+noncomputable instance : EspaceVecNorme K (Eucl K^n) where
+  homogen := by {
+    intro x a; dsimp [GroupeNorme.norm, norme_euclid]
+    rw [←sqrt_sq (Valuation.abs_nonneg a)]
+    rw [←sqrt_mul (sq_nonneg |a|ₖ), Finset.mul_sum]
+    congr; ext i; simp [sq, SMul.smul, instHSMul]; ring_nf
+  }
 
 end EspaceNorme
 

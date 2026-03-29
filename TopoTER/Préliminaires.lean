@@ -45,6 +45,88 @@ abbrev C_star : Set ℂ := {x : ℂ | x ≠ 0}
 notation "Cˣ" => C_star
 
 open Real Complex
+namespace SupReal
+
+@[simp] instance : HSMul ℝ (Set ℝ) (Set ℝ) where
+  hSMul := r ↦ S ↦ {r * s | s ∈ S}
+
+theorem fin_union {α : Type} (f : ℕ → α) (k : ℕ) : let s₁ := {f i | i < k};
+  let s := {f i | i < k + 1}; s = s₁ ∪ {f k} := by
+  intro s₁ s; rw [Set.union_def]; ext; dsimp [s₁, s]
+  apply Iff.intro
+  · case mp => intro h; rcases h with ⟨i, i_lt, hi⟩
+               by_cases lt_k : i < k
+               · case pos => apply Or.inl; use i, lt_k, hi
+               · case neg => apply Nat.eq_of_lt_succ_of_not_lt i_lt at lt_k
+                             apply Or.inr; rw [lt_k] at hi; simp [hi]
+  · case mpr => intro h; cases h
+                · case inl h₁ => rcases h₁ with ⟨i, i_lt, hi⟩
+                                 apply Nat.lt_succ_of_lt at i_lt
+                                 use i, i_lt, hi
+                · case inr h₂ => rw [Set.mem_singleton_iff, Eq.comm] at h₂
+                                 have k_lt : k < k + 1 := by simp
+                                 use k, k_lt, h₂
+
+
+theorem image_of_fin {α : Type} (f : ℕ → α) (n : ℕ) : Finite {f i | i < n}
+  := by
+  induction n
+  · case zero => suffices h : {f i | i < 0} = ∅ by
+                   rw [h]; apply Set.finite_empty
+                 simp
+  · case succ k hk => rw [fin_union f k]
+                      apply Finite.Set.finite_union
+
+theorem bddabove_of_fin_image (f : ℕ → ℝ) (n : ℕ) : BddAbove {f i | i < n}
+  := by
+  apply Set.Finite.bddAbove; apply image_of_fin
+
+lemma bddabove_of_const {s : Set ℝ} {c : ℝ} (h : ∀ x ∈ s, x = c) : BddAbove s
+  := by
+  use c; intro x x_in; exact le_of_eq (h x x_in)
+
+theorem sSup_const {s : Set ℝ} {c : ℝ} (h : s.Nonempty) (h₂ : ∀ x ∈ s, x = c)
+  : sSup s = c := by
+  apply le_antisymm
+  · apply csSup_le h; intro x x_in; exact le_of_eq (h₂ x x_in)
+  · apply le_csSup (bddabove_of_const h₂); rcases h with ⟨x, x_in⟩
+    rw [←h₂ x x_in]; exact x_in
+
+instance {α} [HAdd α α α] : HAdd (Set α) (Set α) (Set α) where
+  hAdd := S ↦ T ↦ {u.fst + u.snd | u ∈ Set.prod S T}
+
+theorem add_nonempty {α} [HAdd α α α] {S T : Set α} (hs : S.Nonempty)
+  (ht : T.Nonempty) : (S + T).Nonempty := by
+  rcases hs with ⟨s, s_in⟩; rcases ht with ⟨t, t_in⟩
+  use s + t; use ⟨s, t⟩, ⟨s_in, t_in⟩
+
+theorem add_bddabove {S T : Set ℝ} (hs : BddAbove S) (ht : BddAbove T) :
+  BddAbove (S + T) := by
+  rcases hs with ⟨s, s_sup⟩; rcases ht with ⟨t, t_sup⟩
+  use s + t; intro v v_in; rcases v_in with ⟨u, u_in, hu⟩
+  rcases u_in with ⟨in_s, in_t⟩
+  rw [←hu]; apply add_le_add
+  · apply s_sup in_s
+  · apply t_sup in_t
+
+theorem sSup_add_ineq {S T : Set ℝ} (hs : S.Nonempty) (hs' : BddAbove S)
+  (ht : T.Nonempty) (ht' : BddAbove T) : sSup (S + T) ≤ sSup S + sSup T := by
+  have h := add_nonempty hs ht
+  apply csSup_le h; intro v v_in
+  rcases v_in with ⟨u, u_in, hu⟩
+  rcases u_in with ⟨in_s, in_t⟩
+  rw [←hu]; apply add_le_add
+  · apply le_csSup hs' in_s
+  · apply le_csSup ht' in_t
+
+theorem sSup_le_sSup {S T : Set ℝ} (hs : S.Nonempty) (ht : BddAbove T)
+  (h : ∀ s ∈ S, ∃ t ∈ T, s ≤ t) : sSup S ≤ sSup T := by
+  apply csSup_le hs; intro s s_in
+  rcases h s s_in with ⟨t, t_in, le_t⟩
+  apply le_csSup_of_le ht t_in le_t
+
+end SupReal
+
 namespace Complex
 
 noncomputable def module (z : ℂ) : ℝ := √(normSq z)
@@ -93,23 +175,13 @@ theorem norm_ineq (z w : ℂ) : ‖z + w‖ᵢ ≤ ‖z‖ᵢ + ‖w‖ᵢ := by
   · rw [eq_zero, add_zero, norm_zero, add_zero]
   · have pos : ‖w‖ᵢ > 0 := norm_pos eq_zero
     apply (div_le_div_iff_of_pos_right pos).mp
-    rw [←norm_div]; repeat rw [add_div, div_self]
-    · rw [←norm_div]; apply norm_add_one
-    · exact ne_of_gt pos
-    · exact eq_zero
+    rw [←norm_div]; rw [add_div, div_self eq_zero]
+    rw [add_div, div_self (ne_of_gt pos)]
+    rw [←norm_div]; apply norm_add_one
 
 end Complex
 
-namespace VectorSpace
-
-class Euclidean (E : Type*) [AddCommGroup E] [Module ℝ E]
-  extends FiniteDimensional ℝ E where
-  scalar : E → E → ℝ
-  symm (u v : E) : scalar u v = scalar v u
-  add_left (u v w : E) : scalar (u + v) w = scalar u w + scalar v w
-  smul_left (u v : E) (k : ℝ) : scalar (k • u) v = k * (scalar u v)
-  pos (u : E) : scalar u u ≥ 0
-  definie (u : E) : scalar u u = 0 ↔ u = 0
+namespace Valuation
 
 class ValuationField (K : Type*) [Field K] where
   abs : K → ℝ
@@ -131,16 +203,76 @@ noncomputable instance : ValuationField ℂ where
   abs := module
   isAbv := module_abs
 
+scoped syntax : max (name := abs) atomic("|" noWs) term "|ₖ" : term
+macro_rules (kind := abs)
+  | `(|$x|ₖ) => `(ValuationField.abs $x)
+
+variable {K : Type*} [Field K] [VF : ValuationField K]
+
+theorem abs_nonneg (k : K) : 0 ≤ |k|ₖ := by
+  apply VF.isAbv.abv_nonneg
+
+@[simp] theorem abs_definie (k : K) : |k|ₖ = 0 ↔ k = 0 := by
+  apply VF.isAbv.abv_eq_zero
+
+@[simp] theorem abs_mul_homo (k₁ k₂ : K) : |k₁|ₖ * |k₂|ₖ = |k₁ * k₂|ₖ := by
+  rw [VF.isAbv.abv_mul]
+
+@[simp] theorem abs_sq (k : K) : |k|ₖ ^ 2 = |k ^ 2|ₖ := by simp [sq]
+
+theorem abs_add_ineq (k₁ k₂ : K) : |k₁ + k₂|ₖ ≤ |k₁|ₖ + |k₂|ₖ := by
+  apply VF.isAbv.abv_add
+
+@[simp] theorem abs_zero : |(0 : K)|ₖ = 0 := by simp
+
+@[simp] theorem abs_one : |(1 : K)|ₖ = 1 := by
+  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩
+  have eq : |(1 : K)|ₖ * |(1 : K)|ₖ = |(1 : K)|ₖ := by
+    rw [←mul, one_mul]
+  rw [mul_left_eq_self₀] at eq; rcases eq with pos | neg
+  · case inl => assumption
+  · case inr => absurd neg; rw [defi]; apply one_ne_zero
+
+@[simp] theorem abs_neg_one : |(-1 : K)|ₖ = 1 := by
+  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩
+  have eq : |(-1 : K)|ₖ * |(-1 : K)|ₖ = 1 := by
+    rw [←mul, neg_one_mul, neg_neg, abs_one]
+  rw [mul_self_eq_one_iff] at eq; rcases eq with pos | neg
+  · case inl => assumption
+  · case inr => linarith [nneg (-1)]
+
+theorem abs_le_zero (k : K) (hk : |k|ₖ ≤ 0) : k = 0 := by
+  rw [←abs_definie]; apply le_antisymm hk (abs_nonneg k)
+
+end Valuation
+
+@[simp] theorem Fin.sum_trunc' {α : Type*} [AddCommGroup α] (n : ℕ)
+  (u : ℕ → α) :  ∑ i : Fin (n + 1), u i = ∑ i : Fin n, u i + u n := by
+  let u' : Fin (n + 1) → α := i ↦ u i
+  refold_let u'; rw [Fin.sum_univ_castSucc]; simp
+
+namespace VectorSpace
+
+class Euclidean (E : Type*) [AddCommGroup E] [Module ℝ E]
+  extends FiniteDimensional ℝ E where
+  scalar : E → E → ℝ
+  symm (u v : E) : scalar u v = scalar v u
+  add_left (u v w : E) : scalar (u + v) w = scalar u w + scalar v w
+  smul_left (u v : E) (k : ℝ) : scalar (k • u) v = k * (scalar u v)
+  pos (u : E) : scalar u u ≥ 0
+  definie (u : E) : scalar u u = 0 ↔ u = 0
+
 @[ext]
-structure R_n (n : ℕ) where
-  p : ℕ → ℝ
+structure K_n (K : Type*) [Field K] (n : ℕ) where
+  p : ℕ → K
   is_fin : ∀ m ≥ n, p m = 0
 
-notation : max "ℝ^" n : max => R_n n
+notation : max K : max "^" n : max => K_n K n
 
-namespace R_n
+namespace K_n
+variable {K : Type*} {n : ℕ} [Field K]
 
-@[simp] instance {n : ℕ} : HAdd ℝ^n ℝ^n ℝ^n where
+@[simp] instance : HAdd K^n K^n K^n where
   hAdd := x ↦ y ↦ ⟨
     x.p + y.p, by {
       intro m m_ge; rw [Pi.add_apply]
@@ -148,7 +280,7 @@ namespace R_n
     }
   ⟩
 
-@[simp] instance {n : ℕ} : HSub ℝ^n ℝ^n ℝ^n where
+@[simp] instance : HSub K^n K^n K^n where
   hSub := x ↦ y ↦ ⟨
     x.p - y.p, by {
       intro m m_ge; rw [Pi.sub_apply]
@@ -156,10 +288,10 @@ namespace R_n
     }
   ⟩
 
-@[simp] instance {n : ℕ} : Zero ℝ^n where
+@[simp] instance : Zero K^n where
   zero := ⟨0, by simp⟩
 
-@[simp] instance {n : ℕ} : Neg ℝ^n where
+@[simp] instance : Neg K^n where
   neg := x ↦ ⟨
     -x.p, by {
       intro m m_ge; rw [Pi.neg_apply]
@@ -167,7 +299,7 @@ namespace R_n
     }
   ⟩
 
-@[simp] instance {n : ℕ} : SMul ℕ ℝ^n where
+@[simp] instance : SMul ℕ K^n where
   smul := k ↦ x ↦ ⟨
     k * x.p, by {
       intro m m_ge; rw [Pi.mul_apply]
@@ -175,7 +307,7 @@ namespace R_n
     }
   ⟩
 
-@[simp] instance {n : ℕ} : SMul ℤ ℝ^n where
+@[simp] instance : SMul ℤ K^n where
   smul := k ↦ x ↦ ⟨
     k * x.p, by {
       intro m m_ge; rw [Pi.mul_apply]
@@ -183,7 +315,7 @@ namespace R_n
     }
   ⟩
 
-@[simp] instance {n : ℕ} : SMul ℝ ℝ^n where
+@[simp] instance : SMul K K^n where
   smul := r ↦ x ↦ ⟨
     k ↦ r * x.p k, by {
       intro m m_ge; dsimp
@@ -191,73 +323,84 @@ namespace R_n
     }
   ⟩
 
-@[simp] theorem add_assoc {n : ℕ} (x y z : ℝ^n) : x + y + z = x + (y + z)
-  := by dsimp; ring_nf
-
-@[simp] theorem add_comm {n : ℕ} (x y : ℝ^n) : x + y = y + x := by
+@[simp] theorem add_assoc (x y z : K^n) : x + y + z = x + (y + z) := by
   dsimp; ring_nf
 
-@[simp] theorem zero_add {n : ℕ} (x : ℝ^n) : 0 + x = x := by
+@[simp] theorem add_comm (x y : K^n) : x + y = y + x := by
+  dsimp; ring_nf
+
+@[simp] theorem zero_add (x : K^n) : 0 + x = x := by
   rw [Zero.toOfNat0]; simp
 
-@[simp] theorem add_zero {n : ℕ} (x : ℝ^n) : x + 0 = x := by
+@[simp] theorem add_zero (x : K^n) : x + 0 = x := by
   rw [add_comm, zero_add]
 
-@[simp] theorem neg_add_cancel {n : ℕ} (x : ℝ^n) : -x + x = 0 := by
+@[simp] theorem neg_add_cancel (x : K^n) : -x + x = 0 := by
   dsimp; ring_nf; rfl
 
-@[simp] theorem add_neg_cancel {n : ℕ} (x : ℝ^n) : x + (-x) = 0 := by
+@[simp] theorem add_neg_cancel (x : K^n) : x + (-x) = 0 := by
   rw [add_comm, neg_add_cancel]
 
-@[simp] theorem zero_nsmul {n : ℕ} (x : ℝ^n) : 0 • x = 0 := by
+@[simp] theorem zero_nsmul (x : K^n) : 0 • x = 0 := by
   simp [HSMul.hSMul]; rfl
 
-@[simp] theorem zero_zsmul {n : ℕ} (x : ℝ^n) : (0 : ℤ) • x = 0 := by
+@[simp] theorem zero_zsmul (x : K^n) : (0 : ℤ) • x = 0 := by
   simp [HSMul.hSMul]; rfl
 
-@[simp] theorem zero_rsmul {n : ℕ} (x : ℝ^n) : (0 : ℝ) • x = 0 := by
+@[simp] theorem zero_ksmul (x : K^n) : (0 : K) • x = 0 := by
   simp [HSMul.hSMul]; rfl
 
-@[simp] theorem rsmul_zero {n : ℕ} (r : ℝ) : r • (0 : ℝ^n) = 0 := by
+@[simp] theorem ksmul_zero (k : K) : k • (0 : K^n) = 0 := by
   rw [Zero.toOfNat0]; simp [HSMul.hSMul]; rfl
 
-@[simp] theorem one_nsmul {n : ℕ} (x : ℝ^n) : 1 • x = x := by
+@[simp] theorem one_nsmul (x : K^n) : 1 • x = x := by
   simp [HSMul.hSMul]
 
-@[simp] theorem one_zsmul {n : ℕ} (x : ℝ^n) : (1 : ℤ) • x = x := by
+@[simp] theorem one_zsmul (x : K^n) : (1 : ℤ) • x = x := by
   simp [HSMul.hSMul]
 
-@[simp] theorem one_rsmul {n : ℕ} (x : ℝ^n) : (1 : ℝ) • x = x := by
+@[simp] theorem one_ksmul (x : K^n) : (1 : K) • x = x := by
   simp [HSMul.hSMul]
 
-@[simp] theorem cast_zsmul {n : ℕ} (k : ℕ) (x : ℝ^n) : (k : ℤ) • x =
-  k • x := by
+@[simp] theorem cast_zsmul (m : ℕ) (x : ℝ^n) : (m : ℤ) • x =
+  m • x := by
   simp [HSMul.hSMul]
 
-@[simp] theorem neg_smul {n : ℕ} (k : ℤ) (x : ℝ^n) : -k • x = -(k • x)
-  := by simp [HSMul.hSMul]
+@[simp] theorem neg_smul (m : ℤ) (x : K^n) : -m • x = -(m • x) := by
+  simp [HSMul.hSMul]
 
-@[simp] theorem add_nsmul {n : ℕ} (k m : ℕ) (x : ℝ^n) : (k + m) • x =
+@[simp] theorem add_nsmul (m₁ m₂ : ℕ) (x : K^n) : (m₁ + m₂) • x =
+  m₁ • x + m₂ • x := by
+  simp [HSMul.hSMul]; ring
+
+@[simp] theorem add_zsmul (k m : ℤ) (x : K^n) : (k + m) • x =
   k • x + m • x := by
   simp [HSMul.hSMul]; ring
 
-@[simp] theorem add_zsmul {n : ℕ} (k m : ℤ) (x : ℝ^n) : (k + m) • x =
-  k • x + m • x := by
-  simp [HSMul.hSMul]; ring
-
-@[simp] theorem add_rsmul {n : ℕ} (r s : ℝ) (x : ℝ^n) : (r + s) • x =
-  r • x + s • x := by
+@[simp] theorem add_ksmul (k₁ k₂ : K) (x : K^n) : (k₁ + k₂) • x =
+  k₁ • x + k₂ • x := by
   simp [HSMul.hSMul]; ring_nf; rfl
 
-@[simp] theorem rsmul_add {n : ℕ} (r : ℝ) (x y : ℝ^n) : r • (x + y) =
-  r • x + r • y := by
+@[simp] theorem ksmul_add (k : K) (x y : K^n) : k • (x + y) =
+  k • x + k • y := by
   simp [HSMul.hSMul]; ring_nf; rfl
 
-@[simp] theorem mul_rsmul {n : ℕ} (r s : ℝ) (x : ℝ^n) : (r * s) • x =
-  r • s • x := by
+@[simp] theorem mul_ksmul (k₁ k₂ : K) (x : K^n) : (k₁ * k₂) • x =
+  k₁ • k₂ • x := by
   simp [HSMul.hSMul]; ring_nf
 
-instance {n : ℕ} : AddCommGroup ℝ^n where
+@[simp] theorem eq_iff (x y : K^n) : x = y ↔ ∀ i < n, x.p i = y.p i := by
+  apply Iff.intro
+  · case mp => intro h i; simp [h]
+  · case mpr => intro h; ext i; by_cases h' : i < n
+                · case pos => simp [h i h']
+                · case neg => apply Nat.ge_of_not_lt at h'
+                              simp [h', x.is_fin, y.is_fin]
+
+@[simp] theorem eq_zero_iff (x : K^n) : x = 0 ↔ ∀ i < n, x.p i = 0 := by
+  rw [Zero.toOfNat0]; simp
+
+instance : AddCommGroup K^n where
   add := x ↦ y ↦ x + y
   add_assoc := add_assoc
   zero := 0
@@ -271,22 +414,54 @@ instance {n : ℕ} : AddCommGroup ℝ^n where
 
   nsmul_zero := zero_nsmul
   nsmul_succ := by simp
-  zsmul_zero' := zero_nsmul
+  zsmul_zero' := zero_zsmul
   zsmul_succ' := by simp
   zsmul_neg' := by
     simp [Int.negSucc_eq, -add_comm]
 
-
-instance {n : ℕ} : Module ℝ ℝ^n where
+instance : Module K K^n where
   smul := r ↦ x ↦ r • x
-  mul_smul := mul_rsmul
-  one_smul := one_rsmul
-  smul_zero := rsmul_zero
-  smul_add := rsmul_add
-  add_smul := add_rsmul
-  zero_smul := zero_rsmul
+  mul_smul := mul_ksmul
+  one_smul := one_ksmul
+  smul_zero := ksmul_zero
+  smul_add := ksmul_add
+  add_smul := add_ksmul
+  zero_smul := zero_ksmul
 
-end R_n
+@[simp] theorem sum_distrib (u : Fin n → K ^ n) : (∑ i : Fin n, u i).p =
+  ∑ i : Fin n, (u i).p := by
+  let u' : ℕ → K^n := j ↦ if h : j < n then (u ⟨j, h⟩) else 0
+  have recur : ∀ j, (∑ i : Fin j, u' i).p = ∑ i : Fin j, (u' i).p := by
+    intro j; induction j
+    case zero => simp; rfl
+    case succ k hk =>
+        let p' : ℕ → ℕ → K := i ↦ (u' i).p
+        rw [Fin.sum_trunc', Fin.sum_trunc' (u := p')]
+        rw [add_comm]; simp [hk]; ring
+--
+  have sum_eq : ∑ i : Fin n, u i = ∑ i : Fin n, u' i := by
+    congr; ext i; unfold u'; rw [dif_pos]
+  rw [sum_eq, recur]; congr; ext i; unfold u'; rw [dif_pos]
+
+def canonBasis (K : Type*) [Field K] (i : Fin n) : K^n where
+  p := k ↦ ite (i = k) 1 0
+  is_fin := by {
+    intro m hm; apply if_neg; by_contra hi
+    absurd hm; linarith [i.is_lt]
+  }
+
+theorem inCanonBasis (x : K^n) : x = ∑ i : Fin n, (x.p i) • canonBasis K i
+  := by
+  rw [eq_iff, sum_distrib]; intro i i_lt
+  rw [Finset.sum_apply]; unfold canonBasis
+  simp only [instHSMul, instSMul, mul_ite, mul_one, mul_zero]
+  rw [Finset.sum_eq_single ⟨i, i_lt⟩]
+  · rw [if_pos (rfl)]
+  · intro b _ hb; apply if_neg; by_contra eq; absurd hb
+    rwa [←Fin.val_inj]
+  · intro h; absurd h; apply Finset.mem_univ
+
+end K_n
 
 def S' (α : Type*) : Set α := Set.univ
 scoped postfix : max "↑" => S'
@@ -294,28 +469,6 @@ scoped postfix : max "↑" => S'
 scoped syntax (name := dot_prod) "⟨" term ", " term "⟩" : term
 macro_rules (kind := dot_prod)
   | `(⟨$x, $y⟩) => `(Euclidean.scalar $x $y)
-
-scoped notation : max "|"x"|" => ValuationField.abs x
-variable {K : Type*} [Field K] [VF : ValuationField K]
-
-theorem abs_zero : |(0 : K)| = 0 := by
-  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩; rw [defi]
-
-theorem abs_one : |(1 : K)| = 1 := by
-  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩
-  have eq : |(1 : K)| * |(1 : K)| = |(1 : K)| := by
-    rw [←mul, one_mul]
-  rw [mul_left_eq_self₀] at eq; rcases eq with pos | neg
-  · case inl => assumption
-  · case inr => absurd neg; rw [defi]; apply one_ne_zero
-
-theorem abs_neg_one : |(-1 : K)| = 1 := by
-  rcases VF.isAbv with ⟨nneg, defi, add, mul⟩
-  have eq : |(-1 : K)| * |(-1 : K)| = 1 := by
-    rw [←mul, neg_one_mul, neg_neg, abs_one]
-  rw [mul_self_eq_one_iff] at eq; rcases eq with pos | neg
-  · case inl => assumption
-  · case inr => linarith [nneg (-1)]
 
 variable {E : Type*} [AddCommGroup E] [Module ℝ E] [EuclidE : Euclidean E]
 
@@ -418,6 +571,51 @@ theorem norm_ineq (u v : E) : ‖u + v‖ₑ ≤ ‖u‖ₑ + ‖v‖ₑ := by
     repeat apply prod_pos
     · rw [←add_prod_add]; apply prod_pos
   · rw [←norm, ←norm]; apply add_nonneg; repeat apply norm_nonneg
+
+def Rn_prod {n : ℕ} (x y : ℝ^n) : ℝ := ∑ i : Fin n, x.p i * y.p i
+
+instance {n : ℕ} : Euclidean ℝ^n where
+  scalar := Rn_prod
+  fg_top := by {
+    let ei : Fin n → ℝ^n := i ↦ K_n.canonBasis ℝ i
+    rw [Submodule.fg_iff_exists_finite_generating_family]
+    use Fin n, Finite.of_fintype (Fin n), ei
+    rw [Submodule.eq_top_iff']; intro x
+    rw [Submodule.mem_span_range_iff_exists_fun]
+    rw [K_n.inCanonBasis x]; use (i ↦ x.p i)
+  }
+
+  symm := by {
+    intro u v; unfold Rn_prod; congr; ext i; rw [mul_comm]
+  }
+
+  add_left := by {
+    intro u v w; unfold Rn_prod; rw [←Finset.sum_add_distrib]
+    congr; ext i; rw [←add_mul]; rfl
+  }
+
+  smul_left := by {
+    intro u v k; unfold Rn_prod; rw [Finset.mul_sum]
+    congr; simp [HSMul.hSMul, SMul.smul]; ring_nf
+  }
+
+  pos := by {
+    intro u; unfold Rn_prod; apply Finset.sum_nonneg
+    intro i hi; apply mul_self_nonneg
+  }
+
+  definie := by {
+    intro u; unfold Rn_prod
+    rw [Finset.sum_eq_zero_iff_of_nonneg, K_n.eq_zero_iff]
+    · apply Iff.intro
+      · case mp => intro h i hi; rw [←mul_self_eq_zero]
+                   apply h ⟨i, hi⟩; apply Finset.mem_univ
+      · case mpr => intro h i hi; rw [mul_self_eq_zero]
+                    by_cases i_le : i < n
+                    · case _ => apply h i i_le
+                    · case _ => apply u.is_fin; linarith
+    · intro i hi; apply mul_self_nonneg
+  }
 
 end VectorSpace
 end TER
