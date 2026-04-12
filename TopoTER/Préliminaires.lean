@@ -23,30 +23,60 @@ macro_rules (kind := for_all)
   | `(∀ $x $y* ∈ $S, $desc) => `([$x, $y,*] $S, $desc)
 
 abbrev Ω {α} : Set α := Set.univ
-abbrev R : Set ℝ := Set.univ
+notation "Partie " X => Set X
 
-abbrev R_star : Set ℝ := {x : ℝ | x ≠ 0}
+abbrev Z : Partie ℝ := {k | k : ℤ}
+abbrev Q : Partie ℝ := {q | q : ℚ}
+abbrev R : Partie ℝ := Ω
+
+abbrev R_star : Partie ℝ := {x : ℝ | x ≠ 0}
 notation "Rˣ" => R_star
 
-abbrev R_pos : Set ℝ := {x : ℝ | x ≥ 0}
+abbrev R_pos : Partie ℝ := {x : ℝ | x ≥ 0}
 notation "R₊" => R_pos
 
-abbrev R_neg : Set ℝ := {x : ℝ | x ≤ 0}
+abbrev R_neg : Partie ℝ := {x : ℝ | x ≤ 0}
 notation "R₋" => R_neg
 
-abbrev R_star_pos : Set ℝ := {x : ℝ | x > 0}
+abbrev R_star_pos : Partie ℝ := {x : ℝ | x > 0}
 notation "R₊ˣ" => R_star_pos
 
-abbrev R_star_neg : Set ℝ := {x : ℝ | x < 0}
+abbrev R_star_neg : Partie ℝ := {x : ℝ | x < 0}
 notation "R₋ˣ" => R_star_neg
 
-abbrev C : Set ℂ := Set.univ
+abbrev C : Partie ℂ := Ω
 
-abbrev C_star : Set ℂ := {x : ℂ | x ≠ 0}
+abbrev C_star : Partie ℂ := {x : ℂ | x ≠ 0}
 notation "Cˣ" => C_star
 
-instance : Coe ℝ R := ⟨r ↦ ⟨r, by simp⟩⟩
-instance : Coe ℂ C := ⟨z ↦ ⟨z, by simp⟩⟩
+lemma Z_eq_of_sub_lt_one (x y : Z) (h : |(x : ℝ) - y| < 1) : x = y := by
+  rcases x.prop with ⟨m, hm⟩; rcases y.prop with ⟨n, hn⟩
+  rw [←Subtype.val_inj, ←hm, ←hn, Int.cast_inj]
+  rw [←hm, ←hn, ←Int.cast_one] at h; apply le_antisymm
+  · rw [←Int.cast_sub] at h; apply lt_of_abs_lt at h
+    rw [Int.cast_lt] at h; linarith
+  · rw [abs_sub_comm, ←Int.cast_sub] at h; apply lt_of_abs_lt at h
+    rw [Int.cast_lt] at h; linarith
+
+def Interval₁ (a b : ℝ) : Set ℝ := {x | a < x ∧ x < b}
+def Interval₂ (a b : ℝ) : Set ℝ := {x | a ≤ x ∧ x ≤ b}
+def Interval₃ (a b : ℝ) : Set ℝ := {x | a < x ∧ x ≤ b}
+def Interval₄ (a b : ℝ) : Set ℝ := {x | a ≤ x ∧ x < b}
+
+notation "(" a ", " b ")" => Interval₁ a b
+notation "[" a ", " b "]" => Interval₂ a b
+notation "(" a ", " b "]" => Interval₃ a b
+notation "[" a ", " b ")" => Interval₄ a b
+
+def Interval₅ (a : ℝ) : Set ℝ := {x | a < x}
+def Interval₆ (a : ℝ) : Set ℝ := {x | a ≤ x}
+def Interval₇ (b : ℝ) : Set ℝ := {x | x < b}
+def Interval₈ (b : ℝ) : Set ℝ := {x | x ≤ b}
+
+notation "]" a ", " "+∞[" => Interval₅ a
+notation "[" a ", " "+∞[" => Interval₆ a
+notation "]-∞" ", " b "[" => Interval₇ b
+notation "]-∞" ", " b "]" => Interval₈ b
 
 open Real Complex
 namespace SupReal
@@ -401,9 +431,6 @@ theorem inCanonBasis (x : K^n) : x = ∑ i, (x.p i) • canonBasis K i := by
   · intro h; absurd h; apply Finset.mem_univ
 
 end K_n
-
-def S' (α : Type*) : Set α := Set.univ
-scoped postfix : max "↑" => S'
 
 scoped syntax (name := dot_prod) "⟨" term ", " term "⟩" : term
 macro_rules (kind := dot_prod)
